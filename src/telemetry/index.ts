@@ -2,6 +2,7 @@ import machineId from 'appcd-machine-id';
 import * as fs from 'fs-extra';
 import got from 'got';
 import merge from 'lodash.merge';
+import ms = require('ms');
 import * as os from 'os';
 import * as path from 'path';
 import { v4 } from 'uuid';
@@ -12,7 +13,7 @@ import { v4 } from 'uuid';
  * @param {string} guid - Application guid to be used.
  * @param {string} sessionId - Session for analytic events to be tied to.
  * @param {string} productVersion - Version of the product reporting telemetry events.
- * @param {string} [store] - Folder to store events on disk.
+ * @param {string} [persistDirectory] - Folder to store events on disk.
  * @param {string} [hardwareId] - ID for the machine.
  * @param {string} [url] - URL to override default URL with.
  *
@@ -26,19 +27,21 @@ export class Telemetry {
 	private guid: string;
 	private hardwareId: string|undefined;
 	private sessionId: string;
+	private persistDirectory: string|undefined;
+	private persistLength: number;
 	private productVersion: string;
-	private storeDirectory: string|undefined;
 	private url = 'https://api.appcelerator.com/p/v4/app-track';
 	private sessionStartTime: number|undefined;
 
-	constructor ({ enabled, environment, guid, hardwareId, productVersion, sessionId, storeDirectory, url }: TelemetryOpts) {
+	constructor ({ enabled, environment, guid, hardwareId, persistDirectory, persistLength, productVersion, sessionId, url }: TelemetryOpts) {
 		this.enabled = enabled;
 		this.environment = environment;
 		this.guid = guid;
 		this.hardwareId = hardwareId;
 		this.sessionId = sessionId  || v4();
+		this.persistLength = ms(persistLength || '30d');
 		this.productVersion = productVersion;
-		this.storeDirectory = storeDirectory;
+		this.persistDirectory = persistDirectory;
 		this.url = url || this.url;
 	}
 
@@ -61,6 +64,7 @@ export class Telemetry {
 		}
 
 		const duration = Date.now() - this.sessionStartTime;
+		this.sessionStartTime = undefined;
 		return this.sendEvent('session.end', {
 			session: {
 				duration
@@ -111,18 +115,35 @@ export class Telemetry {
 				method: 'POST'
 			});
 		} catch (error) {
-			// stuff
+			// TODO
 		}
 
-		if (this.storeDirectory) {
-			await fs.ensureDir(this.storeDirectory);
-			await fs.writeJSON(path.join(this.storeDirectory, `${body.timestamp}.json`), body);
+		if (this.persistDirectory) {
+			await fs.ensureDir(this.persistDirectory);
+			await fs.writeJSON(path.join(this.persistDirectory, `${body.timestamp}.json`), body);
 		}
 	}
 
-	public async emptyStore (): Promise<void> {
-		if (this.storeDirectory) {
-			await fs.emptyDir(this.storeDirectory);
+	public async empty (): Promise<void> {
+		if (this.persistDirectory) {
+			const currentDate = Date.now();
+			const files = await fs.readdir(this.persistDirectory);
+			for (const file of files) {
+				const filePath = path.join(this.persistDirectory, file);
+				try {
+					const timestamp = parseInt(path.basename(file, '.json'), 10);
+					if (isNaN(timestamp)) {
+						// not an event file so just ignore it
+						continue;
+					}
+					const deleteFile = currentDate - timestamp > this.persistLength;
+					if (deleteFile) {
+						await fs.remove(filePath);
+					}
+				} catch (error) {
+					// do nothing
+				}
+			}
 		}
 	}
 }
@@ -155,9 +176,10 @@ interface TelemetryOpts {
 	environment: environment;
 	guid: string;
 	hardwareId?: string;
+	persistDirectory?: string;
+	persistLength?: string;
 	productVersion: string;
 	sessionId?: string;
-	storeDirectory?: string;
 	url?: string;
 }
 

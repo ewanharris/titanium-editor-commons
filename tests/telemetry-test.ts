@@ -19,12 +19,12 @@ async function sleep (time: number): Promise<void> {
 	});
 }
 
-let storeDirectory: string;
+let persistDirectory: string;
 
 describe('Telemetry', () => {
 
 	beforeEach(() => {
-		storeDirectory = global.TMP_DIR.name;
+		persistDirectory = global.TMP_DIR.name;
 	});
 
 	afterEach(async () => {
@@ -40,13 +40,13 @@ describe('Telemetry', () => {
 			hardwareId: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory: storeDirectory
+			persistDirectory: persistDirectory
 		});
 
 		await telemetry.startSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(1);
-		const data = await fs.readJSON(path.join(storeDirectory, events[0]));
+		const data = await fs.readJSON(path.join(persistDirectory, events[0]));
 		expect(data.hardware.id).to.equal('1234');
 	});
 
@@ -60,19 +60,20 @@ describe('Telemetry', () => {
 			hardwareId: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory
+			persistDirectory,
+			persistLength: '1'
 		});
 
 		await telemetry.startSession();
-		let events = await fs.readdir(storeDirectory);
+		let events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(1);
-		await telemetry.emptyStore();
+		await telemetry.empty();
 		await sleep(1000);
 
 		await telemetry.endSession();
-		events = await fs.readdir(storeDirectory);
+		events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(1);
-		const { session } = await fs.readJSON(path.join(storeDirectory, events[0]));
+		const { session } = await fs.readJSON(path.join(persistDirectory, events[0]));
 		expect(session.duration).to.be.closeTo(1000, 25);
 	});
 
@@ -86,7 +87,7 @@ describe('Telemetry', () => {
 			hardwareId: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory
+			persistDirectory
 		});
 
 		await telemetry.sendEvent('foo');
@@ -104,11 +105,11 @@ describe('Telemetry', () => {
 			hardwareId: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory: storeDirectory
+			persistDirectory: persistDirectory
 		});
 
 		await telemetry.endSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(0);
 	});
 
@@ -122,13 +123,13 @@ describe('Telemetry', () => {
 			hardwareId: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory: storeDirectory
+			persistDirectory
 		});
 
 		await telemetry.startSession();
 		await telemetry.sendEvent('foo');
 		await telemetry.endSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(0);
 	});
 
@@ -149,18 +150,18 @@ describe('Telemetry', () => {
 			guid: '1234',
 			productVersion: '1234',
 			sessionId: '1234',
-			storeDirectory
+			persistDirectory
 		});
 
 		await telemetry.sendEvent('foo');
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(1);
-		const data = await fs.readJSON(path.join(storeDirectory, events[0]));
+		const data = await fs.readJSON(path.join(persistDirectory, events[0]));
 		expect(data.hardware.id).to.be.a('string');
 		expect(data.hardware.id).to.equal('foo');
 	});
 
-	it('should work if not provided a storeDirectory', async () => {
+	it('should work if not provided a persistDirectory', async () => {
 		mockEndpoint(200);
 
 		const telemetry = new Telemetry({
@@ -175,9 +176,9 @@ describe('Telemetry', () => {
 		await telemetry.startSession();
 		await telemetry.sendEvent('foo');
 		await telemetry.endSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(0);
-		await telemetry.emptyStore();
+		await telemetry.empty();
 	});
 
 	it('should create a sessionId if none provided', async () => {
@@ -189,13 +190,13 @@ describe('Telemetry', () => {
 			guid: '1234',
 			hardwareId: '1234',
 			productVersion: '1234',
-			storeDirectory
+			persistDirectory
 		});
 
 		await telemetry.startSession();
 		await telemetry.sendEvent('foo');
 		await telemetry.endSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(3);
 	});
 
@@ -208,13 +209,13 @@ describe('Telemetry', () => {
 			guid: '1234',
 			hardwareId: '1234',
 			productVersion: '1234',
-			storeDirectory
+			persistDirectory
 		});
 
 		await telemetry.startSession();
 		await telemetry.sendEvent('foo');
 		await telemetry.endSession();
-		const events = await fs.readdir(storeDirectory);
+		const events = await fs.readdir(persistDirectory);
 		expect(events.length).to.equal(0);
 
 		telemetry.enabled = true;
@@ -222,7 +223,80 @@ describe('Telemetry', () => {
 		await telemetry.startSession();
 		await telemetry.sendEvent('foo');
 		await telemetry.endSession();
-		const events2 = await fs.readdir(storeDirectory);
+		const events2 = await fs.readdir(persistDirectory);
 		expect(events2.length).to.equal(3);
+	});
+
+	it('should only clear events that are passed the persistLength', async () => {
+		mockEndpoint(200);
+
+		const telemetry = new Telemetry({
+			enabled: true,
+			environment: 'development',
+			guid: '1234',
+			hardwareId: '1234',
+			productVersion: '1234',
+			persistDirectory,
+			persistLength: '1h'
+		});
+
+		// Older than 1 hour
+		await fs.writeJSON(path.join(persistDirectory, '1116975600000.json'), {
+			timestamp: 1116975600000
+		});
+
+		// Older than 1 hour
+		await fs.writeJSON(path.join(persistDirectory, '1527289200000.json'), {
+			timestamp: 1527289200000
+		});
+
+		await telemetry.startSession();
+		await telemetry.sendEvent('foo');
+		await telemetry.endSession();
+
+		const events = await fs.readdir(persistDirectory);
+		expect(events.length).to.equal(5);
+
+		await telemetry.empty();
+		const events2 = await fs.readdir(persistDirectory);
+		expect(events2.length).to.equal(3);
+	});
+
+	it('should only clear event files', async () => {
+		mockEndpoint(200);
+
+		const telemetry = new Telemetry({
+			enabled: true,
+			environment: 'development',
+			guid: '1234',
+			hardwareId: '1234',
+			productVersion: '1234',
+			persistDirectory,
+			persistLength: '1h'
+		});
+
+		// Older than 1 hour
+		await fs.writeJSON(path.join(persistDirectory, '1116975600000.json'), {
+			timestamp: 1116975600000
+		});
+
+		// Older than 1 hour
+		await fs.writeJSON(path.join(persistDirectory, '1527289200000.json'), {
+			timestamp: 1527289200000
+		});
+
+		// Not a valid event file
+		await fs.writeFile(path.join(persistDirectory, '.test'), 'foo');
+
+		await telemetry.startSession();
+		await telemetry.sendEvent('foo');
+		await telemetry.endSession();
+
+		const events = await fs.readdir(persistDirectory);
+		expect(events.length).to.equal(6);
+
+		await telemetry.empty();
+		const events2 = await fs.readdir(persistDirectory);
+		expect(events2.length).to.equal(4);
 	});
 });
