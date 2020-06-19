@@ -1,7 +1,6 @@
 import machineId from 'appcd-machine-id';
 import * as fs from 'fs-extra';
 import got from 'got';
-import merge from 'lodash.merge';
 import ms = require('ms');
 import * as os from 'os';
 import * as path from 'path';
@@ -50,12 +49,7 @@ export class Telemetry {
 			return;
 		}
 		this.sessionStartTime = Date.now();
-		return this.sendEvent('session.start', {
-			session: {
-				id: this.sessionId
-			},
-			...data
-		});
+		return this.sendEvent('session.start', data);
 	}
 
 	public async endSession (data?: object): Promise<void> {
@@ -64,16 +58,10 @@ export class Telemetry {
 		}
 
 		const duration = Date.now() - this.sessionStartTime;
-		this.sessionStartTime = undefined;
-		return this.sendEvent('session.end', {
-			session: {
-				duration
-			},
-			...data
-		});
+		return this.sendEvent('session.end', data, { duration });
 	}
 
-	public async sendEvent (event: string, data?: object): Promise<void> {
+	public async sendEvent (event: string, data?: object, sessionData?: object): Promise<void> {
 
 		if (!this.enabled) {
 			return;
@@ -100,17 +88,17 @@ export class Telemetry {
 				version: os.release()
 			},
 			session: {
-				id: this.sessionId
+				id: this.sessionId,
+				...sessionData
 			},
 			timestamp: Date.now(),
-			version: '4'
+			version: '4',
+			data
 		};
-
-		const body = merge(eventInfo, data);
 
 		try {
 			await got(this.url, {
-				body,
+				body: eventInfo,
 				json: true,
 				method: 'POST'
 			});
@@ -120,7 +108,7 @@ export class Telemetry {
 
 		if (this.persistDirectory) {
 			await fs.ensureDir(this.persistDirectory);
-			await fs.writeJSON(path.join(this.persistDirectory, `${body.timestamp}.json`), body);
+			await fs.writeJSON(path.join(this.persistDirectory, `${eventInfo.timestamp}.json`), eventInfo);
 		}
 	}
 
@@ -169,6 +157,7 @@ interface Event {
 	};
 	timestamp: number;
 	version: string;
+	data?: object;
 }
 
 interface TelemetryOpts {
