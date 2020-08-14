@@ -136,7 +136,7 @@ export class Telemetry {
 	}
 }
 
-interface Event {
+export interface Event {
 	app: string;
 	event: string;
 	distribution: {
