@@ -299,4 +299,33 @@ describe('Telemetry', () => {
 		const events2 = await fs.readdir(persistDirectory);
 		expect(events2.length).to.equal(4);
 	});
+
+	it('should track active session', async () => {
+		mockEndpoint(200);
+
+		const telemetry = new Telemetry({
+			enabled: true,
+			environment: 'development',
+			guid: '1234',
+			hardwareId: '1234',
+			productVersion: '1234',
+			sessionId: '1234',
+			persistDirectory,
+			persistLength: '1'
+		});
+
+		await telemetry.startSession();
+		expect(telemetry.hasActiveSession).to.equal(true);
+		let events = await fs.readdir(persistDirectory);
+		expect(events.length).to.equal(1);
+		await telemetry.empty();
+		await sleep(1000);
+
+		await telemetry.endSession();
+		expect(telemetry.hasActiveSession).to.equal(false);
+		events = await fs.readdir(persistDirectory);
+		expect(events.length).to.equal(1);
+		const { session } = await fs.readJSON(path.join(persistDirectory, events[0]));
+		expect(session.duration).to.be.closeTo(1000, 25);
+	});
 });

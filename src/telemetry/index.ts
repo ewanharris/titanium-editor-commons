@@ -22,6 +22,8 @@ import { v4 } from 'uuid';
 export class Telemetry {
 
 	public enabled: boolean;
+	public hasActiveSession: boolean;
+
 	private environment: environment;
 	private guid: string;
 	private hardwareId: string|undefined;
@@ -42,6 +44,7 @@ export class Telemetry {
 		this.productVersion = productVersion;
 		this.persistDirectory = persistDirectory;
 		this.url = url || this.url;
+		this.hasActiveSession = false;
 	}
 
 	public async startSession (data?: Record<string, unknown>): Promise<void> {
@@ -49,6 +52,7 @@ export class Telemetry {
 			return;
 		}
 		this.sessionStartTime = Date.now();
+		this.hasActiveSession = true;
 		return this.sendEvent('session.start', data);
 	}
 
@@ -58,6 +62,7 @@ export class Telemetry {
 		}
 
 		const duration = Date.now() - this.sessionStartTime;
+		this.hasActiveSession = false;
 		return this.sendEvent('session.end', data, { duration });
 	}
 
