@@ -44,7 +44,7 @@ export class Telemetry {
 		this.url = url || this.url;
 	}
 
-	public async startSession (data?: object): Promise<void> {
+	public async startSession (data?: Record<string, unknown>): Promise<void> {
 		if (!this.enabled) {
 			return;
 		}
@@ -52,7 +52,7 @@ export class Telemetry {
 		return this.sendEvent('session.start', data);
 	}
 
-	public async endSession (data?: object): Promise<void> {
+	public async endSession (data?: Record<string, unknown>): Promise<void> {
 		if (!this.sessionStartTime) {
 			return;
 		}
@@ -61,7 +61,7 @@ export class Telemetry {
 		return this.sendEvent('session.end', data, { duration });
 	}
 
-	public async sendEvent (event: string, data?: object, sessionData?: object): Promise<void> {
+	public async sendEvent (event: string, data?: Record<string, unknown>, sessionData?: Record<string, unknown>): Promise<void> {
 
 		if (!this.enabled) {
 			return;
@@ -157,7 +157,7 @@ export interface Event {
 	};
 	timestamp: number;
 	version: string;
-	data?: object;
+	data?: Record<string, unknown>;
 }
 
 interface TelemetryOpts {
