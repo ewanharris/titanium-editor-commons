@@ -328,4 +328,32 @@ describe('Telemetry', () => {
 		const { session } = await fs.readJSON(path.join(persistDirectory, events[0]));
 		expect(session.duration).to.be.closeTo(1000, 25);
 	});
+
+	it('should assign a new session id when a session is ended', async () => {
+		mockEndpoint(200);
+
+		const telemetry = new Telemetry({
+			enabled: true,
+			environment: 'development',
+			guid: '1234',
+			hardwareId: '1234',
+			productVersion: '1234',
+			persistDirectory,
+			persistLength: '1'
+		});
+
+		await telemetry.startSession();
+		let events = await fs.readdir(persistDirectory);
+		const firstEvent = await fs.readJSON(path.join(persistDirectory, events[0]));
+
+		await telemetry.endSession();
+		await telemetry.empty();
+		await sleep(1000);
+
+		await telemetry.startSession();
+		events = await fs.readdir(persistDirectory);
+		const secondEvent = await fs.readJSON(path.join(persistDirectory, events[0]));
+
+		expect(firstEvent.session.id).to.not.equal(secondEvent.session.id);
+	});
 });

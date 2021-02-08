@@ -63,7 +63,9 @@ export class Telemetry {
 
 		const duration = Date.now() - this.sessionStartTime;
 		this.hasActiveSession = false;
-		return this.sendEvent('session.end', data, { duration });
+		await this.sendEvent('session.end', data, { duration });
+		// reassign a new session id
+		this.sessionId = v4();
 	}
 
 	public async sendEvent (event: string, data?: Record<string, unknown>, sessionData?: Record<string, unknown>): Promise<void> {
