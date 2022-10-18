@@ -121,6 +121,21 @@ describe('updates', () => {
 
 			await expect(titanium.sdk.checkInstalledVersion(true)).to.eventually.be.rejectedWith(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
 		});
+
+		it('should handle invalid JSON from Titanium CLI', async () => {
+			const stub: sinon.SinonStub = sandbox.stub(util, 'exec');
+
+			mockNpmCli(stub, 'titanium', '5.3.0');
+			stub
+				.withArgs('ti', [ 'sdk', 'list', '--output', 'json' ], sinon.match.any)
+				.resolves({ stdout: 'FOOOO { "output": "stuff" } }' });
+
+			await expect(titanium.sdk.checkInstalledVersion())
+				.to
+				.eventually
+				.be
+				.rejectedWith(util.CustomError, 'Failed to parse SDK list, SyntaxError: Unexpected token F in JSON at position 0');
+		});
 	});
 
 	describe('node', () => {

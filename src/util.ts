@@ -11,7 +11,7 @@ interface InstallErrorMetadata {
 
 export interface Action {
 	title: string;
-	run: () => Promise<void>;
+	run: () => Promise<unknown>;
 }
 export class CustomError extends Error {
 

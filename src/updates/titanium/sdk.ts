@@ -30,7 +30,7 @@ interface SDKList {
 export async function checkInstalledVersion (validateSelected = false): Promise<SDKInfo|undefined> {
 	let latestSDK: SDKInfo|undefined;
 
-	let stdout;
+	let stdout: string|undefined;
 	try {
 		const result = await runTiCommand([ 'sdk', 'list', '--output', 'json' ]);
 		stdout = result.stdout;
@@ -44,7 +44,21 @@ export async function checkInstalledVersion (validateSelected = false): Promise<
 		return;
 	}
 
-	const { activeSDK, sdks: installedSdks } = JSON.parse(stdout) as SDKList;
+	let sdkList: SDKList|undefined;
+	try {
+		sdkList = JSON.parse(stdout) as SDKList;
+	} catch (error) {
+		throw new CustomError(`Failed to parse SDK list, ${error}`, 'ESDKPARSEFAILED', [
+			{
+				title: 'View output',
+				async run() {
+					return stdout;
+				}
+			}
+		]);
+	}
+
+	const { activeSDK, sdks: installedSdks } = sdkList;
 	// We only care about the active SDK check if there actually is an activeSDK in the output
 	let activeSDKMissing = activeSDK !== undefined;
 	for (const { manifest, name } of Object.values(installedSdks)) {
