@@ -110,7 +110,7 @@ describe('updates', () => {
 			mockSdkList(stub, '8.0.0', '7.0.0');
 			mockSdkListReleases(stub);
 
-			expect(titanium.sdk.checkForUpdate()).to.eventually.throw(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
+			await expect(titanium.sdk.checkInstalledVersion(true)).to.eventually.be.rejectedWith(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
 		});
 
 		it('should handle active sdk not matching and no sdk installed', async () => {
@@ -119,7 +119,7 @@ describe('updates', () => {
 			mockSdkList(stub, undefined, '7.0.0');
 			mockSdkListReleases(stub);
 
-			expect(titanium.sdk.checkForUpdate()).to.eventually.throw(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
+			await expect(titanium.sdk.checkInstalledVersion(true)).to.eventually.be.rejectedWith(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
 		});
 	});
 

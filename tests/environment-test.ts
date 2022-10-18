@@ -95,7 +95,10 @@ describe('environment', () => {
 			mockNpmCli(stub, 'alloy', '1.15.3');
 			mockSdkList(stub, '8.0.0', '7.0.0');
 
-			expect(environment.validateEnvironment()).to.eventually.throw(util.CustomError, 'Selected SDK 7.0.0.GA is not installed');
+			const env = await environment.validateEnvironment();
+			expect(env.issues.length).to.equal(1);
+			expect(env.issues[0].title).to.equal('Selected SDK 7.0.0.GA is not installed');
+			expect(env.issues[0].actions.length).to.equal(2);
 		});
 	});
 });
